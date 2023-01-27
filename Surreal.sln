@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Surreal", "Surreal\Surreal.csproj", "{C4C99CA3-06B1-4346-AB42-9D416C65A413}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".sln", ".sln", "{1D6A0738-BB14-4DAB-BC52-E701104D5642}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+		.gitattributes = .gitattributes
+		.gitignore = .gitignore
+		global.json = global.json
+		nuget.config = nuget.config
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Surreal.Cli", "Surreal.Cli\Surreal.Cli.csproj", "{B5E3F843-787F-440C-82CC-FF78547D78E2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C4C99CA3-06B1-4346-AB42-9D416C65A413}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C4C99CA3-06B1-4346-AB42-9D416C65A413}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4C99CA3-06B1-4346-AB42-9D416C65A413}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C4C99CA3-06B1-4346-AB42-9D416C65A413}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B5E3F843-787F-440C-82CC-FF78547D78E2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B5E3F843-787F-440C-82CC-FF78547D78E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B5E3F843-787F-440C-82CC-FF78547D78E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B5E3F843-787F-440C-82CC-FF78547D78E2}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
