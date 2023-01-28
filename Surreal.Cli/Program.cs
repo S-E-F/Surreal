@@ -1,12 +1,21 @@
-﻿using Surreal;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
-var surreal = new SurrealConnection("localhost:8000");
+using Surreal;
+
+var services = new ServiceCollection();
+
+services.AddLogging(logging =>
+{
+    logging.AddConsole();
+    logging.SetMinimumLevel(LogLevel.Trace);
+});
+services.AddSurrealDB("localhost:8000");
+
+var di = services.BuildServiceProvider();
+
+var surreal = di.GetRequiredService<SurrealConnection>();
 await surreal.OpenAsync();
-var signedIn = await surreal.SignInAsync("root", "root");
-
-if (signedIn)
-    Console.WriteLine("Signed in as root");
-else
-    Console.WriteLine("Failed to sign in");
-
-Console.ReadLine();
+await surreal.SignInAsync("root", "root");
+await surreal.UseAsync("test", "test");
+await surreal.QueryAsync("info for kv"); // Gets information about the current? namespace

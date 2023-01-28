@@ -4,6 +4,8 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 
+using Microsoft.Extensions.Logging;
+
 namespace Surreal;
 
 public class JsonRpcClient
@@ -11,19 +13,22 @@ public class JsonRpcClient
     private readonly CancellationTokenSource _cts = new();
     private readonly ClientWebSocket _socket = new();
     private Task _connection = Task.CompletedTask;
-    private readonly Uri _uri;
-    private readonly ConcurrentDictionary<Guid, Token> _responses = new();
+    private readonly ConcurrentDictionary<Guid, CallToken> _responses = new();
     private readonly ConcurrentDictionary<string, HashSet<Func<Task>>> _notificationHandlers = new();
+    private readonly ILogger<JsonRpcClient>? _logger;
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
         WriteIndented = true,
     };
 
-    public JsonRpcClient(Uri uri)
+    public JsonRpcClient(Uri uri, ILogger<JsonRpcClient>? logger)
     {
-        _uri = uri;
+        Url = uri;
+        _logger = logger;
     }
+
+    public Uri Url { get; }
 
     public void On(string notification, Func<Task> callback)
     {
@@ -33,16 +38,19 @@ public class JsonRpcClient
             _notificationHandlers.TryAdd(notification, new HashSet<Func<Task>> { callback });
     }
 
-    class Token
+    private readonly struct CallToken
     {
-        public required Guid Id { get; init; }
+        public Guid Id { get; }
 
-        private readonly TaskCompletionSource<JsonDocument> _tcs = new();
+        private readonly TaskCompletionSource<JsonDocument> _tcs;
 
-        public async Task<JsonDocument> GetAsync()
+        public CallToken(Guid id)
         {
-            return await _tcs.Task;
+            Id = id;
+            _tcs = new();
         }
+
+        public Task<JsonDocument> Response => _tcs.Task;
 
         public void SetResponse(JsonDocument response)
         {
@@ -59,33 +67,58 @@ public class JsonRpcClient
             method,
             @params = parameters,
         }, _jsonOptions);
-        Console.WriteLine("CALL");
-        Console.WriteLine(Encoding.UTF8.GetString(jsonBytes));
-        var token = new Token { Id = id };
+
+        if (_logger?.IsEnabled(LogLevel.Information) is true)
+            LogCall(method, id, jsonBytes);
+
+        var token = new CallToken(id);
         _responses.TryAdd(id, token);
+
         await _socket.SendAsync(jsonBytes, WebSocketMessageType.Text, WebSocketMessageFlags.EndOfMessage, ct);
-        var response = await token.GetAsync();
+
+        var response = await token.Response;
+
         _responses.Remove(id, out _);
-        Console.WriteLine("RESPONSE");
-        Console.WriteLine(JsonSerializer.Serialize(response, _jsonOptions));
+
+        if (_logger?.IsEnabled(LogLevel.Information) is true)
+            LogReceive(method, id, response);
+
         return response;
+    }
+
+    private void LogCall(string method, Guid id, byte[] json)
+    {
+        if (_logger?.IsEnabled(LogLevel.Trace) is true)
+            _logger?.LogTrace("Calling '{Method}' ({Id})\r\n{Json}", method, id, Encoding.UTF8.GetString(json));
+        else
+            _logger?.LogInformation("Calling '{Method}' ({Id})", method, id);
+    }
+
+    private void LogReceive(string method, Guid id, JsonDocument json)
+    {
+        if (_logger?.IsEnabled(LogLevel.Trace) is true)
+            _logger?.LogTrace("Response for '{Method}' ({Id})\r\n{Json}", method, id, JsonSerializer.Serialize(json, _jsonOptions));
+        else
+            _logger?.LogInformation("Response for '{Method}' ({Id})", method, id);
     }
 
     public async Task OpenAsync()
     {
-        await _socket.ConnectAsync(_uri, _cts.Token);
+        await _socket.ConnectAsync(Url, _cts.Token);
+        _logger?.LogInformation("Connection established with {Url}", Url);
         _connection = Task.Run(async () =>
         {
             WebSocketReceiveResult result;
-            var buffer = new ArraySegment<byte>(new byte[2048]);
+            var buffer = new byte[2048];
+            var segment = new ArraySegment<byte>(buffer);
+            using var stream = new MemoryStream();
             do
             {
-                using var stream = new MemoryStream();
+                stream.SetLength(0);
                 do
                 {
-                    result = await _socket.ReceiveAsync(buffer, _cts.Token);
-                    stream.Write(buffer.Array!, buffer.Offset, result.Count);
-                    await Task.Delay(17);
+                    result = await _socket.ReceiveAsync(segment, _cts.Token);
+                    stream.Write(buffer, segment.Offset, result.Count);
 
                 } while (!result.EndOfMessage);
 
@@ -101,7 +134,7 @@ public class JsonRpcClient
                 var isResult = response.RootElement.ValueKind is JsonValueKind.Object && response.RootElement.GetProperty("id").ValueKind is JsonValueKind.String;
 
                 if (isResult)
-                    await HandleResultAsync(response.RootElement.GetProperty("id").GetGuid(), response);
+                    HandleResult(response.RootElement.GetProperty("id").GetGuid(), response);
                 else
                     await HandleNotificationAsync(response);
 
@@ -109,10 +142,8 @@ public class JsonRpcClient
         });
     }
 
-    private async Task HandleResultAsync(Guid id, JsonDocument response)
+    private void HandleResult(Guid id, JsonDocument response)
     {
-        Console.WriteLine($"RESULT {id}");
-        Console.WriteLine(JsonSerializer.Serialize(response, _jsonOptions));
         var success = _responses.TryGetValue(id, out var token);
         Debug.Assert(success is true);
         token!.SetResponse(response);
@@ -120,9 +151,8 @@ public class JsonRpcClient
 
     private async Task HandleNotificationAsync(JsonDocument response)
     {
-        Console.WriteLine("NOTIFICATION");
-        Console.WriteLine(JsonSerializer.Serialize(response, _jsonOptions));
         var method = response.RootElement.GetProperty("method").GetString()!;
+        _logger?.LogInformation("Notification {notification}", method);
         if (_notificationHandlers.TryGetValue(method, out var set))
             foreach (var handler in set) await handler();
     }

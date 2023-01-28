@@ -1,16 +1,19 @@
-﻿using System.Text.Json;
+﻿using System.Net.WebSockets;
+using System.Text.Json;
+
+using Microsoft.Extensions.Logging;
 
 namespace Surreal;
 
 public class SurrealConnection
 {
-    private readonly Uri _url;
     private readonly JsonRpcClient _rpc;
+    private readonly ILogger<SurrealConnection>? _logger;
 
-    public SurrealConnection(string url)
+    public SurrealConnection(string url, ILogger<SurrealConnection>? logger = null, ILogger<JsonRpcClient>? rpcLogger = null)
     {
-        _url = new Uri($"ws://{url}/rpc");
-        _rpc = new(_url);
+        _rpc = new(new Uri($"ws://{url}/rpc"), rpcLogger);
+        _logger = logger;
     }
 
     public async Task OpenAsync()
@@ -31,6 +34,18 @@ public class SurrealConnection
             return true;
 
         return false;
+    }
+
+    public async Task<JsonDocument> UseAsync(string @namespace, string database, CancellationToken ct = default)
+    {
+        var response = await _rpc.CallAsync("use", ct, @namespace, database);
+        return response;
+    }
+
+    public async Task<JsonDocument> QueryAsync(string query, object? parameters = null, CancellationToken ct = default)
+    {
+        var response = await _rpc.CallAsync("query", ct, query, parameters);
+        return response;
     }
 }
 
