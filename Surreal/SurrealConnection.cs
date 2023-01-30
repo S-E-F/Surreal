@@ -76,7 +76,7 @@ public class SurrealConnection
     {
         public override DateOnly Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return DateOnly.ParseExact(reader.GetString(), "yyyy-MM-dd", CultureInfo.InvariantCulture);
+            return DateOnly.FromDateTime(DateTime.ParseExact(reader.GetString(), "yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture));
         }
 
         public override void Write(Utf8JsonWriter writer, DateOnly value, JsonSerializerOptions options)
