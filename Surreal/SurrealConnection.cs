@@ -1,5 +1,8 @@
-﻿using System.Net.WebSockets;
+﻿using System.Globalization;
+using System.Net.WebSockets;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using Microsoft.Extensions.Logging;
 
@@ -47,5 +50,59 @@ public class SurrealConnection
         var response = await _rpc.CallAsync("query", ct, query, parameters);
         return response;
     }
+
+    public async Task<T?> SelectAsync<T>(string id, CancellationToken ct = default)
+    {
+        var response = await _rpc.CallAsync("select", ct, id);
+
+        if (!response.RootElement.TryGetProperty("result", out var result))
+            return default;
+
+        if (result.ValueKind is not JsonValueKind.Array)
+        {
+            _logger?.LogInformation("Failed to parse result from response\r\n{Json}", response.ToDisplayString());
+            throw new InvalidOperationException("Surreal SELECT result value was not an array");
+        }
+
+        if (result.GetArrayLength() is 0)
+            return default;
+
+        var options = new JsonSerializerOptions();
+        options.Converters.Add(new DateOnlyJsonConverter());
+
+        return JsonSerializer.Deserialize<T>(result[0], options);
+    }
+
+    private class DateOnlyJsonConverter : JsonConverter<DateOnly>
+    {
+        public override DateOnly Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return DateOnly.ParseExact(reader.GetString(), "yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
+
+        public override void Write(Utf8JsonWriter writer, DateOnly value, JsonSerializerOptions options)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public async Task<JsonDocument> CreateAsync<T>(string id, T record, CancellationToken ct = default)
+    {
+        var response = await _rpc.CallAsync("create", ct, id, record);
+        return response;
+    }
 }
 
+public static class SurrealConnectionJsonExtensions
+{
+    public static string ToDisplayString(this JsonDocument document)
+    {
+        using var stream = new MemoryStream();
+        var writer = new Utf8JsonWriter(stream, new JsonWriterOptions
+        {
+            Indented = true,
+        });
+        document.WriteTo(writer);
+        return Encoding.UTF8.GetString(stream.ToArray());
+    }
+}
