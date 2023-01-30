@@ -6,15 +6,24 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 public static class SurrealConnectionExtensions
 {
-    public static IServiceCollection AddSurrealDB(this IServiceCollection services, string url, ServiceLifetime lifetime = ServiceLifetime.Scoped)
+    public static IServiceCollection AddSurrealDB(this IServiceCollection services, string url, Action<SurrealOptions> configure)
     {
-        services.Add(new ServiceDescriptor(typeof(SurrealConnection), CreateSurrealConnection, lifetime));
+        var options = new SurrealOptions
+        {
+            Url = url
+        };
+        configure?.Invoke(options);
+
+        services.AddSingleton(options);
+        services.Add(new ServiceDescriptor(typeof(SurrealConnection), CreateSurrealConnection, options.Lifetime));
         return services;
 
-        SurrealConnection CreateSurrealConnection(IServiceProvider di)
+        static SurrealConnection CreateSurrealConnection(IServiceProvider di)
         {
-            return new SurrealConnection(url, di.GetService<ILogger<SurrealConnection>>(), di.GetService<ILogger<JsonRpcClient>>());
+            return new SurrealConnection(
+                options: di.GetRequiredService<SurrealOptions>(),
+                logger: di.GetService<ILogger<SurrealConnection>>(),
+                rpcLogger: di.GetService<ILogger<JsonRpcClient>>());
         }
     }
 }
-

@@ -22,10 +22,11 @@ public class JsonRpcClient
         WriteIndented = true,
     };
 
-    public JsonRpcClient(Uri uri, ILogger<JsonRpcClient>? logger)
+    public JsonRpcClient(Uri uri, ILogger<JsonRpcClient>? logger, Action<ClientWebSocketOptions>? configure = null)
     {
         Url = uri;
         _logger = logger;
+        configure?.Invoke(_socket.Options);
     }
 
     public Uri Url { get; }
@@ -104,7 +105,15 @@ public class JsonRpcClient
 
     public async Task OpenAsync()
     {
-        await _socket.ConnectAsync(Url, _cts.Token);
+        try
+        {
+            await _socket.ConnectAsync(Url, _cts.Token);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to connect to {Url}", Url);
+            throw;
+        }
         _logger?.LogInformation("Connection established with {Url}", Url);
         _connection = Task.Run(async () =>
         {

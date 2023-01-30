@@ -12,7 +12,13 @@ services.AddLogging(logging =>
     logging.AddConsole();
     logging.SetMinimumLevel(LogLevel.Trace);
 });
-services.AddSurrealDB("localhost:8000");
+services.AddSurrealDB("localhost:8000", options =>
+{
+    options.EncryptedConnection = true;
+    options.ConfigureRpc = rpc =>
+    {
+    };
+});
 
 var di = services.BuildServiceProvider();
 
