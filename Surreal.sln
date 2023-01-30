@@ -10,11 +10,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".sln", ".sln", "{1D6A0738-B
 		.editorconfig = .editorconfig
 		.gitattributes = .gitattributes
 		.gitignore = .gitignore
+		devlog.md = devlog.md
 		global.json = global.json
 		nuget.config = nuget.config
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Surreal.Cli", "Surreal.Cli\Surreal.Cli.csproj", "{B5E3F843-787F-440C-82CC-FF78547D78E2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Surreal.Cli", "Surreal.Cli\Surreal.Cli.csproj", "{B5E3F843-787F-440C-82CC-FF78547D78E2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,5 +34,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {19ED098E-35F9-4307-870E-F6DFF23B2286}
 	EndGlobalSection
 EndGlobal

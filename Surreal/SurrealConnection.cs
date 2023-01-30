@@ -1,5 +1,4 @@
-﻿using System.Net.WebSockets;
-using System.Text.Json;
+﻿using System.Text.Json;
 
 using Microsoft.Extensions.Logging;
 
@@ -10,9 +9,9 @@ public class SurrealConnection
     private readonly JsonRpcClient _rpc;
     private readonly ILogger<SurrealConnection>? _logger;
 
-    public SurrealConnection(string url, ILogger<SurrealConnection>? logger = null, ILogger<JsonRpcClient>? rpcLogger = null)
+    public SurrealConnection(SurrealOptions options, ILogger<SurrealConnection>? logger = null, ILogger<JsonRpcClient>? rpcLogger = null)
     {
-        _rpc = new(new Uri($"ws://{url}/rpc"), rpcLogger);
+        _rpc = new(options.ComputedUri, rpcLogger, options.ConfigureRpc);
         _logger = logger;
     }
 
