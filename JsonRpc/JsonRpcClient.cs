@@ -1,12 +1,14 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Globalization;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using Microsoft.Extensions.Logging;
 
-namespace Surreal;
+namespace JsonRpc;
 
 public class JsonRpcClient
 {
@@ -16,20 +18,38 @@ public class JsonRpcClient
     private readonly ConcurrentDictionary<Guid, CallToken> _responses = new();
     private readonly ConcurrentDictionary<string, HashSet<Func<Task>>> _notificationHandlers = new();
     private readonly ILogger<JsonRpcClient>? _logger;
+
+    private class DateOnlyJsonConverter : JsonConverter<DateOnly>
+    {
+        public override DateOnly Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return DateOnly.FromDateTime(DateTime.ParseExact(reader.GetString() ?? throw new InvalidOperationException("Invalid date format"), "yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture));
+        }
+
+        public override void Write(Utf8JsonWriter writer, DateOnly value, JsonSerializerOptions options)
+        {
+            writer.WriteStringValue(value.ToDateTime(TimeOnly.MinValue));
+        }
+    }
+
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
         WriteIndented = true,
     };
 
-    public JsonRpcClient(Uri uri, ILogger<JsonRpcClient>? logger, Action<ClientWebSocketOptions>? configure = null)
+    static JsonRpcClient()
     {
-        Url = uri;
+        _jsonOptions.Converters.Add(new DateOnlyJsonConverter());
+    }
+
+    public JsonRpcClient(ILogger<JsonRpcClient>? logger, Action<ClientWebSocketOptions>? configure = null)
+    {
         _logger = logger;
         configure?.Invoke(_socket.Options);
     }
 
-    public Uri Url { get; }
+    public Uri Url { get; private set; } = default!;
 
     public void On(string notification, Func<Task> callback)
     {
@@ -39,11 +59,27 @@ public class JsonRpcClient
             _notificationHandlers.TryAdd(notification, new HashSet<Func<Task>> { callback });
     }
 
+    private readonly struct RpcResponse
+    {
+        public Guid Id { get; init; }
+
+        public JsonElement? Result { get; init; }
+
+        public JsonElement? Error { get; init; }
+    }
+
+    private readonly struct RpcError
+    {
+        public int Code { get; init; }
+
+        public string Message { get; init; }
+    }
+
     private readonly struct CallToken
     {
         public Guid Id { get; }
 
-        private readonly TaskCompletionSource<JsonDocument> _tcs;
+        private readonly TaskCompletionSource<RpcResponse> _tcs;
 
         public CallToken(Guid id)
         {
@@ -51,15 +87,15 @@ public class JsonRpcClient
             _tcs = new();
         }
 
-        public Task<JsonDocument> Response => _tcs.Task;
+        public Task<RpcResponse> Response => _tcs.Task;
 
-        public void SetResponse(JsonDocument response)
+        public void SetResponse(RpcResponse result)
         {
-            _tcs.SetResult(response);
+            _tcs.SetResult(result);
         }
     }
 
-    public async Task<JsonDocument> CallAsync(string method, CancellationToken ct, params object?[] parameters)
+    public async Task<T?> CallAsync<T>(string method, CancellationToken ct, params object?[] parameters)
     {
         var id = Guid.NewGuid();
         var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(new
@@ -78,13 +114,18 @@ public class JsonRpcClient
         await _socket.SendAsync(jsonBytes, WebSocketMessageType.Text, WebSocketMessageFlags.EndOfMessage, ct);
 
         var response = await token.Response;
-
         _responses.Remove(id, out _);
 
-        if (_logger?.IsEnabled(LogLevel.Information) is true)
-            LogReceive(method, id, response);
+        if (response.Error is not null)
+        {
+            var error = JsonSerializer.Deserialize<RpcError>(response.Error.Value.GetRawText(), _jsonOptions);
+            throw new InvalidOperationException($"Error {error.Code} for {response.Id}: {error.Message}");
+        }
 
-        return response;
+        if (response.Result is null)
+            return default;
+
+        return JsonSerializer.Deserialize<T>(response.Result.Value.GetRawText(), _jsonOptions);
     }
 
     private void LogCall(string method, Guid id, byte[] json)
@@ -95,16 +136,20 @@ public class JsonRpcClient
             _logger?.LogInformation("Calling '{Method}' ({Id})", method, id);
     }
 
-    private void LogReceive(string method, Guid id, JsonDocument json)
+    private void LogReceive(Stream stream)
     {
         if (_logger?.IsEnabled(LogLevel.Trace) is true)
-            _logger?.LogTrace("Response for '{Method}' ({Id})\r\n{Json}", method, id, JsonSerializer.Serialize(json, _jsonOptions));
-        else
-            _logger?.LogInformation("Response for '{Method}' ({Id})", method, id);
+        {
+            stream.Seek(0, SeekOrigin.Begin);
+            var doc = JsonSerializer.Deserialize<JsonDocument>(stream, _jsonOptions);
+            _logger?.LogTrace("Response:\r\n{Json}", JsonSerializer.Serialize(doc, _jsonOptions));
+        }
     }
 
-    public async Task OpenAsync()
+    public async Task OpenAsync(Uri uri)
     {
+        Url = uri;
+        var startTime = Stopwatch.GetTimestamp();
         try
         {
             await _socket.ConnectAsync(Url, _cts.Token);
@@ -114,15 +159,16 @@ public class JsonRpcClient
             _logger?.LogError(ex, "Failed to connect to {Url}", Url);
             throw;
         }
-        _logger?.LogInformation("Connection established with {Url}", Url);
+        _logger?.LogInformation("Connection established with {Url} in {ElapsedTime}", Url, Stopwatch.GetElapsedTime(startTime));
         _connection = Task.Run(async () =>
         {
-            WebSocketReceiveResult result;
             var buffer = new byte[2048];
             var segment = new ArraySegment<byte>(buffer);
             using var stream = new MemoryStream();
+
             do
             {
+                WebSocketReceiveResult result;
                 stream.SetLength(0);
                 do
                 {
@@ -134,36 +180,21 @@ public class JsonRpcClient
                 if (result.MessageType is WebSocketMessageType.Close)
                     break;
 
+                if (_logger?.IsEnabled(LogLevel.Information) is true)
+                    LogReceive(stream);
+
                 stream.Seek(0, SeekOrigin.Begin);
-                var response = await JsonSerializer.DeserializeAsync<JsonDocument>(stream, _jsonOptions);
+                var response = await JsonSerializer.DeserializeAsync<RpcResponse>(stream, _jsonOptions);
 
-                if (response is null)
-                    throw new InvalidOperationException("rpc response deserialized to null???");
+                var success = _responses.TryGetValue(response.Id, out var token);
 
-                var isResult = response.RootElement.ValueKind is JsonValueKind.Object && response.RootElement.GetProperty("id").ValueKind is JsonValueKind.String;
+                if (!success)
+                    throw new InvalidOperationException($"Failed to retrieve request token for response {response.Id}");
 
-                if (isResult)
-                    HandleResult(response.RootElement.GetProperty("id").GetGuid(), response);
-                else
-                    await HandleNotificationAsync(response);
+                token.SetResponse(response);
 
             } while (!_cts.IsCancellationRequested);
         });
-    }
-
-    private void HandleResult(Guid id, JsonDocument response)
-    {
-        var success = _responses.TryGetValue(id, out var token);
-        Debug.Assert(success is true);
-        token!.SetResponse(response);
-    }
-
-    private async Task HandleNotificationAsync(JsonDocument response)
-    {
-        var method = response.RootElement.GetProperty("method").GetString()!;
-        _logger?.LogInformation("Notification {notification}", method);
-        if (_notificationHandlers.TryGetValue(method, out var set))
-            foreach (var handler in set) await handler();
     }
 
     public async Task CloseAsync()

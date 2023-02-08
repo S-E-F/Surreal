@@ -35,5 +35,12 @@ This will add `surreal.pk8` which we can use when starting surreal:
 
 Client-side, .NET handles the client certificate for us as long as we properly generated the initial certs using `dotnet dev-certs`.
 
-# Disclaimer
+### Disclaimer
 I am by no means an expert on security so take this document with a grain of salt and of course, as with all local development certificates, DO NOT USE THIS IN PRODUCTION.
+
+# 07/02/2023 Docker
+
+For some reason unknown I couldn't get a Surreal database in Docker to work (my client would not connect). After trying again; it worked and I'm not sure why. Let's just assume I had `wss://` turned on without the container running with proper certificates.
+It still doesn't have certificates, but a client connection on `ws://` works fine now.
+
+> `docker run -p 8000:8000 --restart unless-stopped surrealdb/surrealdb:latest start --user root --pass root --log debug`

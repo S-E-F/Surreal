@@ -1,0 +1,1 @@
+surreal start --log debug --user root --pass root --web-key C:/dev-certs/surreal.pk8 --web-crt C:/dev-certs/surreal.pem memory

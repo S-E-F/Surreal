@@ -1,28 +1,23 @@
 ﻿using System.Text.Json;
 
+using Humanizer;
+
+using JsonRpc;
+
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
+
+using Serilog;
+using Serilog.Core;
+using Serilog.Sinks.SystemConsole.Themes;
 
 using Surreal;
+using Surreal.Cli;
 
-var services = new ServiceCollection();
+Log.Logger = CreateLogger();
+var app = CreateHost(args);
 
-services.AddLogging(logging =>
-{
-    logging.AddConsole();
-    logging.SetMinimumLevel(LogLevel.Trace);
-});
-services.AddSurrealDB("localhost:8000", options =>
-{
-    options.EncryptedConnection = true;
-    options.ConfigureRpc = rpc =>
-    {
-    };
-});
-
-var di = services.BuildServiceProvider();
-
-var surreal = di.GetRequiredService<SurrealConnection>();
+var surreal = app.Services.GetRequiredService<SurrealConnection>();
 await surreal.OpenAsync();
 await surreal.SignInAsync("root", "root");
 await surreal.UseAsync("test", "test");
@@ -44,10 +39,29 @@ Console.WriteLine(JsonSerializer.Serialize(result, new JsonSerializerOptions
     PropertyNameCaseInsensitive = true,
 }));
 
-record User
+static IHost CreateHost(string[] args)
 {
-    public required string UserName { get; init; }
-    public required DateOnly DateOfBirth { get; init; }
-    public required string FirstName { get; init; }
-    public required string LastName { get; init; }
+    return new HostBuilder()
+        .ConfigureServices(services =>
+        {
+            services.AddJsonRpc();
+            services.AddSurrealDB("localhost:8000", options => options.EncryptedConnection = false);
+        })
+        .UseSerilog()
+        .Build();
+}
+
+static Logger CreateLogger()
+{
+    return new LoggerConfiguration()
+        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss}] ({Level}) {NewLine}{Message:lj}{NewLine}{NewLine}", theme: new HslConsoleTheme(new Dictionary<ConsoleThemeStyle, Hsl>
+        {
+            [ConsoleThemeStyle.Null] = new Hsl(276, 100, 49),
+            [ConsoleThemeStyle.Name] = new Hsl(125, 100, 49),
+            [ConsoleThemeStyle.LevelVerbose] = new Hsl(0, 0, 20),
+            [ConsoleThemeStyle.LevelInformation] = new Hsl(180, 100, 50),
+        }))
+        .MinimumLevel.Verbose()
+        .Destructure.ByTransforming<TimeSpan>(ts => ts.Humanize(int.MaxValue))
+        .CreateLogger();
 }

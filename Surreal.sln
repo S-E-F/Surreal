@@ -13,9 +13,14 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".sln", ".sln", "{1D6A0738-B
 		devlog.md = devlog.md
 		global.json = global.json
 		nuget.config = nuget.config
+		start.ps1 = start.ps1
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Surreal.Cli", "Surreal.Cli\Surreal.Cli.csproj", "{B5E3F843-787F-440C-82CC-FF78547D78E2}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "JsonRpc", "JsonRpc\JsonRpc.csproj", "{12C1B95A-E444-43C6-9F43-CD3F0EF1377E}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DotSef.Extensions.DependencyInjection", "DotSef.Extensions.DependencyInjection\DotSef.Extensions.DependencyInjection.csproj", "{666817D8-B927-497C-BD74-BB0D0076C287}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -31,6 +36,14 @@ Global
 		{B5E3F843-787F-440C-82CC-FF78547D78E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B5E3F843-787F-440C-82CC-FF78547D78E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B5E3F843-787F-440C-82CC-FF78547D78E2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{12C1B95A-E444-43C6-9F43-CD3F0EF1377E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{12C1B95A-E444-43C6-9F43-CD3F0EF1377E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{12C1B95A-E444-43C6-9F43-CD3F0EF1377E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{12C1B95A-E444-43C6-9F43-CD3F0EF1377E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{666817D8-B927-497C-BD74-BB0D0076C287}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{666817D8-B927-497C-BD74-BB0D0076C287}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{666817D8-B927-497C-BD74-BB0D0076C287}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{666817D8-B927-497C-BD74-BB0D0076C287}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
