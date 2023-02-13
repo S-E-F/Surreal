@@ -10,6 +10,22 @@ using Microsoft.Extensions.Logging;
 
 namespace JsonRpc;
 
+public sealed class RpcException : Exception
+{
+    public int Code { get; init; }
+
+    public Guid Id { get; init; }
+
+    public string ErrorMessage { get; init; }
+
+    public RpcException(int code, Guid id, string errorMessage) : base($"Error {code} for {id}: {errorMessage}")
+    {
+        Code = code;
+        Id = id;
+        ErrorMessage = errorMessage;
+    }
+}
+
 public class JsonRpcClient
 {
     private readonly CancellationTokenSource _cts = new();
@@ -119,7 +135,7 @@ public class JsonRpcClient
         if (response.Error is not null)
         {
             var error = JsonSerializer.Deserialize<RpcError>(response.Error.Value.GetRawText(), _jsonOptions);
-            throw new InvalidOperationException($"Error {error.Code} for {response.Id}: {error.Message}");
+            throw new RpcException(error.Code, response.Id, error.Message);
         }
 
         if (response.Result is null)

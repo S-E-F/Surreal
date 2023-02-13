@@ -44,3 +44,13 @@ For some reason unknown I couldn't get a Surreal database in Docker to work (my 
 It still doesn't have certificates, but a client connection on `ws://` works fine now.
 
 > `docker run -p 8000:8000 --restart unless-stopped surrealdb/surrealdb:latest start --user root --pass root --log debug`
+
+# 08/02/2023 Docker
+
+To run a container with a mounted volume:
+
+> ```
+> $folder_container=surreal-data
+> $folder_host=C:\data\surrealdb
+> docker run -v $folder_host:/$folder -p 8000:8000 surrealdb/surrealdb:latest start --user root --pass root --log debug file://$folder
+> ```

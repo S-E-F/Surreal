@@ -1,8 +1,31 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 using JsonRpc;
 
 using Microsoft.Extensions.Logging;
 
 namespace Surreal;
+
+public abstract class SurrealException : Exception
+{
+    protected SurrealException(string message) : base(message)
+    {
+    }
+
+    protected SurrealException(string message, Exception innerException) : base(message, innerException)
+    {
+    }
+}
+
+public sealed class SurrealRecordAlreadyExistsException : SurrealException
+{
+    public SurrealRecordAlreadyExistsException(string message)
+        : base(message) { }
+
+    public SurrealRecordAlreadyExistsException(string message, Exception inner)
+        : base(message, inner) { }
+}
 
 public sealed class SurrealConnection
 {
@@ -52,6 +75,25 @@ public sealed class SurrealConnection
 
     public async Task<IEnumerable<T>> CreateAsync<T>(string id, T record, CancellationToken ct = default)
     {
-        return await _rpc.CallAsync<IEnumerable<T>>("create", ct, id, record) ?? Enumerable.Empty<T>();
+        try
+        {
+            return await _rpc.CallAsync<IEnumerable<T>>("create", ct, id, record) ?? Enumerable.Empty<T>();
+        }
+        catch (RpcException error) when (error.Code is -32000)
+        {
+            throw new SurrealRecordAlreadyExistsException(error.ErrorMessage, error);
+        }
+    }
+
+    private readonly struct InfoForKvResult
+    {
+        [JsonPropertyName("ns")]
+        public Dictionary<string, string> Namespaces { get; init; }
+    }
+
+    public async Task GetNamespacesAsync(CancellationToken ct = default)
+    {
+        var result = await _rpc.CallAsync<InfoForKvResult>("info", ct);
+        Console.WriteLine(JsonSerializer.Serialize(result));
     }
 }

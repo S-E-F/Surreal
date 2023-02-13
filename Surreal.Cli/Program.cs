@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 
 using Humanizer;
 
@@ -20,7 +20,7 @@ var app = CreateHost(args);
 var surreal = app.Services.GetRequiredService<SurrealConnection>();
 await surreal.OpenAsync();
 await surreal.SignInAsync("root", "root");
-await surreal.UseAsync("test", "test");
+await surreal.UseAsync("testns", "testdb");
 
 var sef = new User
 {
@@ -30,8 +30,10 @@ var sef = new User
     LastName = "Fitriyadi"
 };
 
-await surreal.CreateAsync("users:sef", sef);
+//await surreal.CreateAsync("users:sef", sef);
 var result = await surreal.SelectAsync<User>("users:sef");
+
+await surreal.GetNamespacesAsync();
 
 Console.WriteLine(JsonSerializer.Serialize(result, new JsonSerializerOptions
 {
@@ -45,7 +47,7 @@ static IHost CreateHost(string[] args)
         .ConfigureServices(services =>
         {
             services.AddJsonRpc();
-            services.AddSurrealDB("localhost:8000", options => options.EncryptedConnection = false);
+            services.AddSurrealDB("localhost:1337", options => options.EncryptedConnection = false);
         })
         .UseSerilog()
         .Build();
